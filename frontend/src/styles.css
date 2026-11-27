@@ -1,0 +1,205 @@
+* { box-sizing: border-box; }
+
+:root {
+  --bg: #f3f4f6;
+  --paper: #ffffff;
+  --text: #1f2937;
+  --muted: #6b7280;
+  --border: #d1d5db;
+  --primary: #2563eb;
+  --primary-dark: #1d4ed8;
+  --danger: #dc2626;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 15px;
+  color: var(--text);
+  background: var(--bg);
+}
+
+h1, h2, h3 { margin-top: 0; }
+code { background: #eef2ff; padding: 1px 5px; border-radius: 4px; }
+
+.muted { color: var(--muted); }
+.small-text { font-size: 13px; }
+.error { color: var(--danger); margin: 8px 0; }
+.spacer { flex: 1; }
+
+/* ---------- buttons & inputs ---------- */
+.btn {
+  display: inline-block;
+  padding: 8px 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: white;
+  color: var(--text);
+  font: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+.btn:hover { background: #f9fafb; }
+.btn:disabled { opacity: 0.6; cursor: default; }
+.btn.primary { background: var(--primary); border-color: var(--primary); color: white; }
+.btn.primary:hover { background: var(--primary-dark); }
+.btn.danger { color: var(--danger); }
+.btn.small { padding: 4px 10px; font-size: 13px; }
+
+input, select {
+  font: inherit;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: white;
+}
+input:focus, select:focus { outline: 2px solid var(--primary); outline-offset: -1px; }
+
+.badge {
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #e5e7eb;
+  white-space: nowrap;
+}
+.badge.editor { background: #dcfce7; color: #166534; }
+.badge.viewer { background: #fef3c7; color: #92400e; }
+
+.card {
+  background: var(--paper);
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+/* ---------- layout ---------- */
+.center-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 20px;
+  background: white;
+  border-bottom: 1px solid #e5e7eb;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+.logo { font-weight: 700; color: var(--primary); }
+
+/* ---------- login ---------- */
+.login-card { width: 100%; max-width: 360px; display: flex; flex-direction: column; gap: 14px; }
+.login-card label { display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
+.demo-users { border-top: 1px solid #e5e7eb; padding-top: 12px; display: flex; flex-wrap: wrap; gap: 6px; }
+.demo-users p { width: 100%; margin: 0 0 4px; font-size: 13px; color: var(--muted); }
+
+/* ---------- doc list ---------- */
+.doc-list { max-width: 860px; margin: 0 auto; padding: 24px 16px; }
+.doc-list h2 { margin: 28px 0 8px; font-size: 17px; }
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.doc-rows { list-style: none; padding: 0; margin: 0; }
+.doc-rows li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  margin-bottom: 6px;
+}
+.doc-title { flex: 1; color: var(--text); font-weight: 500; text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.doc-title:hover { color: var(--primary); }
+
+/* ---------- editor ---------- */
+.title-input { border-color: transparent; font-size: 17px; font-weight: 500; min-width: 0; flex: 0 1 380px; }
+.title-input:hover:not(:disabled) { border-color: var(--border); }
+.title-input:disabled { background: transparent; color: var(--text); }
+.save-status { font-size: 13px; white-space: nowrap; }
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 6px 20px;
+  background: white;
+  border-bottom: 1px solid #e5e7eb;
+  position: sticky;
+  top: 53px;
+  z-index: 9;
+}
+.tool {
+  min-width: 34px;
+  padding: 5px 8px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+.tool:hover { background: #f3f4f6; }
+.tool.active { background: #dbeafe; color: var(--primary-dark); }
+.divider { width: 1px; margin: 4px 6px; background: #e5e7eb; }
+
+.paper {
+  max-width: 816px;
+  min-height: 70vh;
+  margin: 24px auto 60px;
+  padding: 48px 64px;
+  background: var(--paper);
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+.paper .ProseMirror { outline: none; min-height: 60vh; line-height: 1.6; }
+.paper .ProseMirror h1 { font-size: 28px; margin: 18px 0 8px; }
+.paper .ProseMirror h2 { font-size: 22px; margin: 16px 0 6px; }
+.paper .ProseMirror h3 { font-size: 18px; margin: 14px 0 6px; }
+.paper .ProseMirror p { margin: 0 0 10px; }
+.paper .ProseMirror blockquote { border-left: 3px solid var(--border); margin: 0 0 10px; padding-left: 14px; color: var(--muted); }
+
+.banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 10px 20px;
+  background: #fef3c7;
+  color: #92400e;
+  border-bottom: 1px solid #fcd34d;
+}
+
+/* ---------- share dialog ---------- */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  z-index: 50;
+}
+.modal { width: 100%; max-width: 520px; }
+.modal h3 { font-size: 15px; margin: 20px 0 8px; }
+.share-form { display: flex; gap: 8px; flex-wrap: wrap; }
+.share-form input { flex: 1; min-width: 180px; }
+.share-list { list-style: none; padding: 0; margin: 0; }
+.share-list li { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid #f3f4f6; }
+.share-list li > span:first-child { flex: 1; }
+.modal-footer { display: flex; justify-content: flex-end; margin-top: 20px; }
+
+@media (max-width: 640px) {
+  .paper { padding: 24px 18px; margin: 12px 8px; }
+  .topbar { padding: 8px 12px; flex-wrap: wrap; }
+  .toolbar { padding: 6px 8px; position: static; } /* topbar wraps on phones, so don't stick */
+  .doc-rows li { flex-wrap: wrap; }
+}
