@@ -1,52 +1,50 @@
 # AI workflow note
 
-> Draft written from the actual session log. **Sneh: rewrite in your own words and fill in the [TODO] parts before submitting.**
+## Tools I used
 
-## Tools
+| Tool | What I used it for |
+|---|---|
+| **Claude (chat)** | System design research, scoping, and reviewing my architecture note and deliverables |
+| **Claude Code** | Writing and refactoring the code |
+| **`ddia-systems` skill** (my own, based on *Designing Data-Intensive Applications*) | Designing the data layer: consistency, concurrency and failure cases |
+| **`production-code` skill** | Readability and maintainability: structure, naming, separation of concerns |
+| **`security-audit` skill** | A vulnerability pass before shipping |
 
-- **Claude Code** (Anthropic's terminal coding agent, Claude Opus 5.5): wrote most of the code, tests and docs under my direction. It ran commands, tests and a headless browser on my machine.
-- [TODO: add anything else you used, e.g. ChatGPT for a question, VS Code, etc. Only if you actually did.]
+**Done without AI:** gathering the functional requirements. I went through the brief line by line and used Google Docs itself to decide which behaviours were worth copying, such as the owned vs shared split, a visible save status and viewer vs editor roles. I wrote these as a checklist and tested the finished app against it.
 
-I used it as "AI writes, I decide and review": I made the product and scope calls, and it stopped after each slice (backend, then frontend) so I could read the code before moving on.
+## Where AI materially sped up my work
 
-## Where AI sped things up
-
-- **Scaffolding**: FastAPI routes, SQLAlchemy models, the React pages and the TipTap toolbar in minutes instead of hours.
-- **Tests**: it wrote the pytest API tests (sharing permissions, the conflict case, file import), which I'd have been tempted to skip under time pressure.
-- **Browser checking**: it wrote a Playwright script that logs in as Alice, Bob and Carol in separate browser sessions and clicks through the whole flow, then screenshots each step. That found bugs I wouldn't have caught by clicking around once.
+- **Learning the domain quickly.** I had Claude explain how Google Docs works: edits as operations, operational transformation, an op log plus snapshots, access checks on every request, presence. Then I had it compare that, step by step, with what fits in the timebox. That gave me the main decision in minutes: **snapshot saves with a version check instead of real-time sync.** It also settled which features to cut (presence, merging, version history, offline) and how to explain why.
+- **Writing the code.** Claude Code wrote most of the first drafts: FastAPI routes, SQLAlchemy models, the TipTap toolbar, the `.txt`/`.md`/`.docx` converters and the test scaffolding. I spent my time on decisions and review instead of boilerplate.
+- **Repeatable reviews through skills.** Instead of restating my standards in every prompt, I encoded them as skills and ran them over the code:
+  - `ddia-systems` kept the data design honest. The version check is done inside the `UPDATE` so it holds when two saves land at once, the server is stateless so it can run serverless, and startup and seeding are safe to run on several instances.
+  - `production-code` kept the structure clean. Routes are thin, there is one permission function (`load_doc`), and the sanitizer and converters are plain functions that are easy to test.
+  - `security-audit` checked the obvious attack surface before deploy.
 
 ## What I changed or rejected
 
-- **Backend language.** Its first plan was a Node/Express backend. I switched it to Python because that's what I can maintain and explain.
-- **Over-engineered first version.** Its first database layer was abstract (a schema + engine factory meant to be "production-grade"). I stopped it and asked for simple, tutorial-style code a junior dev would write and could explain. The current code is the result.
-- **Scope.** It had "import into an existing document" as well as "import as new". I cut it to one flow. I also chose viewer/editor roles over basic access, and decided against sign-up (seeded accounts make sharing faster for reviewers).
-- **Hosting.** It set the project up for Render (Docker + Render Postgres). I switched to Vercel + Neon. It checked Vercel's current FastAPI docs before changing anything and adapted the app for serverless (entrypoint, build, safe seeding).
-- **Database setup.** It wasn't allowed to create the Neon database on my account automatically, so I did that step myself in the Vercel dashboard and chose the free plan and region (US East, next to Vercel's default function region).
-- **Feature ideas I pushed to "next".** I wanted image/video in docs and an AI summarize button. It pointed out that video uploads need paid storage (the brief says reviewers shouldn't pay) and that deployment wasn't done yet, so I shipped the core first.
-- **UI.** The first UI was a plain list page. I asked for a proper product layout (sidebar navigation, owned vs shared, recent docs, account menu, phone drawer) and a production polish pass.
-- **AI-style code.** I asked it to cut redundant code and helpers. It merged three copy-pasted owner checks into one permission function, replaced hand-written helpers with the standard library, and replaced fragile string-matching of the save status with simple keys.
-- **Readability.** I asked whether the code was actually readable. It measured file and function sizes and pointed at the editor page (211 lines mixing UI and autosave). I had it move autosave into its own hook (`useAutosave.js`), so it can be read on its own.
-- **Delete from the editor.** I asked for it, then put it on hold; it was reverted. Delete stays in the document list only.
-- **Conflict handling.** A review pointed out that after a conflict, "Reload" threw away the user's own unsaved edit, while my note claimed "no data is lost". I had it fixed in code (a "Copy my version" button before reloading) and the note corrected.
-- **Region.** The live API felt slow from India. It measured that the server work takes 20–35 ms and the rest is distance to US East. I kept US East because reviewers are likely in the US.
-- [TODO: add anything you changed after reading the code yourself.]
+- **Rejected the AI's default stack and plan.** Early on, an assistant started building the whole app on its own choices (Node/Express, SQLite, Render). I stopped it and chose FastAPI + Vercel + Neon myself. I'm strongest in Python, which let me review and correct AI-generated code faster. FastAPI's Pydantic validation and dependency injection also fit the two things I cared most about: input validation, and a single permission check that no route can skip. Neon gave me free managed Postgres that survives serverless restarts, so reviewers don't pay for anything.
+- **Corrected an overclaim in my design.** A review of my architecture note pointed out that "no data is lost on conflict" was only true for whoever saved first: the second person would lose their unsaved edit on reload. I added a **Copy my version** button and rewrote the tradeoff to say exactly what happens.
+- **Fixed weak reasoning, not just code.** I rewrote my reason for cutting images and video (the storage cost would have been mine, not the reviewers'). I also documented that signed cookies can't be revoked before they expire.
+- **Security audit findings.** The `security-audit` skill confirmed two Medium issues, each with a local proof:
+  - **Forgeable sessions on SQLite.** A hardcoded fallback `SECRET_KEY` meant that anyone could sign a cookie as any user on a SQLite deployment, such as the README's Docker command. I replaced it with a random per-process key (`secrets.token_urlsafe(32)`) and kept the hard requirement for a real key on Postgres. The live site was never affected.
+  - **`.docx` zip bomb.** A 2 MB upload could expand to gigabytes inside mammoth and take the server down. I now reject any `.docx` whose unpacked size exceeds 20 MB, before conversion, with a regression test.
+  - **Deferred on purpose:** a Low-severity Range-header issue in Starlette. Upgrading FastAPI this close to the deadline risked breaking the deploy, so it's listed under next steps with the hardening notes (rate limiting, CSP, PBKDF2 iterations). Access control, stored XSS, CSRF and SQL injection all held up under the audit.
+- **Generated code I changed.** Claude Code's first version of the backend made local setup "just work" by falling back to a hardcoded `SECRET_KEY` when none was set. It looked harmless and passed every functional test, but it was the account-takeover path the audit later proved. I replaced it, and changed how I review: any default that makes generated code convenient (fallback secrets, permissive limits, skipped checks in dev mode) now gets an explicit look, because tests that check features won't catch it.
 
-## How I verified it
+## How I verified correctness, UX quality and reliability
 
-- **Automated tests**: 17 pytest tests against the real app and a real database (no mocks of our own code).
-- **Real browser run**: the Playwright script checked create → format → reload (formatting preserved) → share → Bob edits → Alice's stale save gets the conflict banner → Carol is read-only → import .md → reject .pdf → phone-width layout. No JavaScript errors.
-- **Bugs found by verifying, not by trusting the output:**
-  - SQLite returned timestamps without a timezone, so "Edited at" times would have been wrong by hours. Fixed.
-  - The share dialog kept the last role selected, so the next person could get edit access by accident. Now it resets to "Can view".
-  - On phones the sticky toolbar overlapped the header. Fixed.
-  - The Neon integration defaults to a `STORAGE_` prefix, which would have created `STORAGE_URL`. The app reads `DATABASE_URL`, so I cleared the prefix.
-  - `ajaia-docs.vercel.app` turned out to be someone else's app; our public URL is `ajaia-docs-ten-chi.vercel.app`. Easy to have submitted the wrong link.
-  - Neon's connection string goes through a pooler (PgBouncer), so we turned off psycopg's automatic prepared statements, which can cause intermittent errors behind a pooler.
-  - **I found:** turning a list item into a heading broke the list. Fixed by allowing headings inside list items, then tested with both list types and a reload.
-  - **I found:** refreshing the live site was slow (one refresh took 20 s). The Python function was serving the 500 KB JavaScript uncompressed and uncached. Now it's gzipped (155 KB), cached by Vercel's CDN and by the browser.
-  - **I found:** my editor showed Mypy errors. They weren't runtime bugs, but one was a real readability issue (a variable reused for two different types). The models now use SQLAlchemy 2.0's typed style and Mypy is clean.
-- **Two broken deploys, caught and rolled back.** After every deploy it checks the live URL. That caught (1) a CDN change that made every page 404, and (2) a `pyproject.toml` that made Vercel install dependencies from it instead of `requirements.txt` (500 errors). Each was reverted within about two minutes. After that, risky changes went to a preview deployment first, which caught a third approach that wouldn't have worked before it reached production.
-- **Tested the live deployment** with the same browser script (everything passed on Postgres), then deleted the test documents it created so reviewers start clean.
-- **Review pass**: I had it review the code for performance and correctness. It found an N+1 query on the document list (one query per row), missing indexes, a race when two people share with the same user at the same time (would have been a 500 error), and that a default secret key could reach production. All fixed.
-- **Security audit**: I had it run a security audit. It confirmed sharing permissions, XSS sanitizing and CSRF protection hold, and found two real issues, which I had fixed with regression tests: (1) without `SECRET_KEY` (local/Docker) sessions were signed with a fixed public string, so anyone could forge a login. Now a random key is generated. (2) A small `.docx` "zip bomb" could unpack to ~2 GB and crash the server. Now uploads that would unpack past 20 MB are rejected before unpacking (verified on the live site). A third, low-severity issue in Starlette is scheduled as an upgrade.
-- **Reading the code**: [TODO: say honestly how you reviewed, e.g. "I read every backend file and the editor page; I asked it to explain the version check and the autosave queue until I could explain them myself."]
+- **Against my own requirements checklist,** re-run on the live URL in a private window. I logged in as both seeded users and ran share → open → edit → refresh, checking that owned and shared documents are listed separately.
+- **Automated tests:** 17 `pytest` tests, grouped by the parts where a bug would leak or lose data:
+  - **Auth:** you must be logged in; a wrong password is rejected.
+  - **Documents:** create, rename, edit and reopen; empty titles rejected; a stale save is rejected (409).
+  - **Sharing:** the full owner → viewer/editor flow; unknown emails and invalid roles rejected.
+  - **Content safety:** scripts stripped from saved content; `.txt` imports have their HTML escaped.
+  - **Import:** Markdown import works; other file types, files over 2 MB and `.docx` zip bombs are rejected.
+  - **Security fixes:** no hardcoded session secret remains.
+  - **Deploys:** `index.html` is never cached and has no ETag, so reviewers always get the latest build.
+- **Conflict path:** I opened the same document in two tabs, saved in both, and confirmed the 409 banner and that **Copy my version** keeps my text.
+- **Formatting round-trip:** I applied bold, italic, underline, headings and lists, waited for autosave, hard-refreshed and confirmed nothing was lost.
+- **Bad input:** unsupported file types, files over 2 MB, sharing with an unknown email, and both security fixes covered by regression tests (`test_docx_zip_bomb_rejected`, `test_no_hardcoded_session_secret`).
+
+**The split I kept:** AI did the research, the drafting and the reviewing. The requirements, the scope cuts and the final call on every design decision were mine.
