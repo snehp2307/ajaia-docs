@@ -33,7 +33,7 @@ I used it as "AI writes, I decide and review": I made the product and scope call
 
 ## How I verified it
 
-- **Automated tests**: 13 pytest tests against the real app and a real database (no mocks of our own code).
+- **Automated tests**: 17 pytest tests against the real app and a real database (no mocks of our own code).
 - **Real browser run**: the Playwright script checked create → format → reload (formatting preserved) → share → Bob edits → Alice's stale save gets the conflict banner → Carol is read-only → import .md → reject .pdf → phone-width layout. No JavaScript errors.
 - **Bugs found by verifying, not by trusting the output:**
   - SQLite returned timestamps without a timezone, so "Edited at" times would have been wrong by hours. Fixed.
@@ -48,4 +48,5 @@ I used it as "AI writes, I decide and review": I made the product and scope call
 - **Two broken deploys, caught and rolled back.** After every deploy it checks the live URL. That caught (1) a CDN change that made every page 404, and (2) a `pyproject.toml` that made Vercel install dependencies from it instead of `requirements.txt` (500 errors). Each was reverted within about two minutes. After that, risky changes went to a preview deployment first, which caught a third approach that wouldn't have worked before it reached production.
 - **Tested the live deployment** with the same browser script (everything passed on Postgres), then deleted the test documents it created so reviewers start clean.
 - **Review pass**: I had it review the code for performance and correctness. It found an N+1 query on the document list (one query per row), missing indexes, a race when two people share with the same user at the same time (would have been a 500 error), and that a default secret key could reach production. All fixed.
+- **Security audit**: I had it run a security audit. It confirmed sharing permissions, XSS sanitizing and CSRF protection hold, and found two real issues, which I had fixed with regression tests: (1) without `SECRET_KEY` (local/Docker) sessions were signed with a fixed public string, so anyone could forge a login. Now a random key is generated. (2) A small `.docx` "zip bomb" could unpack to ~2 GB and crash the server. Now uploads that would unpack past 20 MB are rejected before unpacking (verified on the live site). A third, low-severity issue in Starlette is scheduled as an upgrade.
 - **Reading the code**: [TODO: say honestly how you reviewed, e.g. "I read every backend file and the editor page; I asked it to explain the version check and the autosave queue until I could explain them myself."]

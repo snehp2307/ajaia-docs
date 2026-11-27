@@ -25,7 +25,7 @@ Vercel serves the built React app from its CDN; `/api/*` goes to FastAPI. Tables
 - **Content is HTML, sanitized on the server.** TipTap reads and writes HTML, so formatting round-trips unchanged. `nh3` strips everything the editor can't produce, so a crafted request can't store a `<script>`.
 - **Import, not attachments.** `.txt`, `.md` and `.docx` (max 2 MB) become a new editable document. Only the converted text is stored, so there's no file storage to run.
 - **Stateless server.** Login is a signed cookie, nothing is kept in memory, and there are no local files. That's what lets it run as serverless functions that scale out without code changes.
-- **Tests.** 13 pytest tests run against the real app and a real database. They cover the access rules (404 for no access, 403 for viewers, owner-only sharing and delete), the 409 conflict, HTML sanitizing, file import, and the upload and input limits. These are the parts where a bug would leak data or lose it.
+- **Tests.** 17 pytest tests run against the real app and a real database. They cover the access rules (404 for no access, 403 for viewers, owner-only sharing and delete), the 409 conflict, HTML sanitizing, file import, the upload and input limits, the zip-bomb check, and that there is no hardcoded session key. These are the parts where a bug would leak data or lose it.
 - **Serverless details.** Startup may run on several instances at once, so table creation is repeatable and seeding tolerates a duplicate. Neon's connection pooler doesn't support prepared statements, so they're turned off. Secrets live only in Vercel environment variables.
 
 ## What I cut, and why
@@ -46,5 +46,6 @@ Vercel serves the built React app from its CDN; `/api/*` goes to FastAPI. Tables
 
 1. Version history with restore (builds on the existing `version` column)
 2. Images in documents, and video embeds by YouTube/Vimeo/Loom link
-3. Alembic migrations and login rate limiting
+3. Alembic migrations, and login rate limiting stored in Postgres (an in-memory limiter doesn't work across serverless instances)
+5. Upgrade FastAPI/Starlette for a low-severity Range-header advisory found in the security audit
 4. "Bob is viewing" presence, then real-time editing with Yjs

@@ -75,7 +75,7 @@ cd backend
 pytest
 ```
 
-11 API tests run against the real app and a real SQLite database: login, create/rename/edit/reopen, HTML sanitizing, the full sharing flow (owner / editor / viewer / no access), the stale-save conflict, and file import. To run them on Postgres: `TEST_DATABASE_URL=postgresql://... pytest`.
+17 API tests run against the real app and a real SQLite database: login, create/rename/edit/reopen, HTML sanitizing, the full sharing flow (owner / editor / viewer / no access), the stale-save conflict, and file import. To run them on Postgres: `TEST_DATABASE_URL=postgresql://... pytest`.
 
 ## Deployment
 
