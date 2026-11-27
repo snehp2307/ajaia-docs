@@ -335,7 +335,10 @@ def health():
 
 FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "..", "frontend", "dist")
 
-if os.path.isdir(FRONTEND_DIR):
+# Locally and in Docker, FastAPI serves the React app. On Vercel the CDN serves it from
+# public/ (fast, cached, compressed); registering these routes there would send every
+# page load through this Python function instead. Vercel sets the VERCEL env var.
+if os.path.isdir(FRONTEND_DIR) and not os.getenv("VERCEL"):
     app.mount("/assets", StaticFiles(directory=os.path.join(FRONTEND_DIR, "assets")), name="assets")
 
     @app.get("/{path:path}")
