@@ -3,11 +3,25 @@ import { Link, useParams } from "react-router-dom";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Underline from "@tiptap/extension-underline";
+import Placeholder from "@tiptap/extension-placeholder";
+import ListItem from "@tiptap/extension-list-item";
+
+// By default a list item must start with a normal paragraph, so turning a list
+// line into a heading kicked it out of the list. Allow headings in list items too.
+const ListItemWithHeadings = ListItem.extend({ content: "(paragraph | heading) block*" });
 import { api } from "../api";
 import Toolbar from "../components/Toolbar";
 import ShareDialog from "../components/ShareDialog";
 
 const SAVE_DELAY = 1000; // wait 1s after the last keystroke before saving
+
+// picks the colour of the little dot next to the save status
+function statusClass(status) {
+  if (status === "Saved") return "saved";
+  if (status === "Saving…") return "saving";
+  if (status === "Unsaved changes") return "unsaved";
+  return "failed";
+}
 
 export default function EditorPage() {
   const { id } = useParams();
@@ -93,7 +107,12 @@ function DocEditor({ doc }) {
   }
 
   const editor = useEditor({
-    extensions: [StarterKit, Underline],
+    extensions: [
+      StarterKit.configure({ listItem: false }), // replaced by ListItemWithHeadings below
+      ListItemWithHeadings,
+      Underline,
+      Placeholder.configure({ placeholder: "Start writing…" }),
+    ],
     content: doc.content,
     editable: canEdit,
     onUpdate: ({ editor }) => {
@@ -142,7 +161,9 @@ function DocEditor({ doc }) {
           aria-label="Document title"
         />
         <span className="spacer" />
-        {canEdit ? <span className="muted save-status">{status}</span> : <span className="badge viewer">View only</span>}
+        {canEdit
+          ? <span className={`save-status ${statusClass(status)}`} role="status">{status}</span>
+          : <span className="badge viewer">View only</span>}
         {doc.role === "owner" && <button className="btn primary small" onClick={() => setShowShare(true)}>Share</button>}
         {doc.role !== "owner" && <span className="muted">Owner: {doc.owner.name}</span>}
       </header>

@@ -44,7 +44,7 @@ export default function ShareDialog({ docId, shares, onChange, onClose }) {
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="card modal" role="dialog" aria-label="Share document" onClick={(e) => e.stopPropagation()}>
+      <div className="card modal" role="dialog" aria-modal="true" aria-label="Share document" onClick={(e) => e.stopPropagation()}>
         <h2>Share document</h2>
 
         <form className="share-form" onSubmit={handleShare}>
