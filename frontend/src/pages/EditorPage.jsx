@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate, useOutletContext, useParams } from "react-router-dom";
+import { Link, useOutletContext, useParams } from "react-router-dom";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Underline from "@tiptap/extension-underline";
@@ -58,18 +58,6 @@ function DocEditor({ doc }) {
   const [shares, setShares] = useState(doc.shares || []);
   // a renamed doc should show its new title in the sidebar
   const { status, saveError, queueSave } = useAutosave(doc, reloadDocs);
-  const navigate = useNavigate();
-
-  async function deleteDoc() {
-    if (!window.confirm(`Delete "${title}"? This can't be undone.`)) return;
-    try {
-      await api.deleteDoc(doc.id);
-      await reloadDocs();
-      navigate("/");
-    } catch (err) {
-      window.alert(err.message);
-    }
-  }
 
   const editor = useEditor({
     extensions: [
@@ -118,14 +106,9 @@ function DocEditor({ doc }) {
         <div className="avatar-stack" aria-label={`People with access: ${people.map((p) => p.name).join(", ")}`}>
           {people.map((p) => <Avatar key={p.id} name={p.name} size={28} />)}
         </div>
-        {isOwner ? (
-          <>
-            <button className="btn primary small" onClick={() => setShowShare(true)}>Share</button>
-            <button className="btn small danger" onClick={deleteDoc}>Delete</button>
-          </>
-        ) : (
-          <span className="muted small-text owner-label">Owned by {doc.owner.name}</span>
-        )}
+        {isOwner
+          ? <button className="btn primary small" onClick={() => setShowShare(true)}>Share</button>
+          : <span className="muted small-text owner-label">Owned by {doc.owner.name}</span>}
       </header>
 
       {status === "conflict" && (
