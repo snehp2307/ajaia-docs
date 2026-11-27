@@ -30,13 +30,20 @@ Vercel serves the built React app from its CDN; `/api/*` goes to FastAPI. Tables
 
 ## What I cut, and why
 
-| Cut | Why |
-|---|---|
-| Real-time co-editing, presence | Needs WebSockets plus a CRDT (e.g. Yjs). Conflict detection already covers the data-safety part |
-| Sign-up, password reset, SSO | Seeded accounts let reviewers test sharing in seconds |
-| Comments, version history, export | Each is its own feature; core flow first |
-| Images and video in docs | Video needs paid object storage, and reviewers mustn't pay for anything |
-| Migrations, pagination, login rate limiting | Not needed at demo scale; listed below |
+I spent the timebox making the core loop correct, safe and deployed, and cut anything that would have been shallow, fake, or a risk to that.
+
+| Cut | Why | Next step |
+|---|---|---|
+| Real-time co-editing | Needs WebSockets plus a CRDT (e.g. Yjs), which is a different architecture; on serverless, socket connections are time-limited, so it also needs reconnect handling or a separate realtime service. Done halfway, it loses data, so I made concurrent edits *safe* first: the version check stops silent overwrites, and **Copy my version** lets the second editor recover their text | 1–2 days |
+| Presence ("Bob is viewing") | Mostly cosmetic without real-time editing | ~30 min, polling heartbeat |
+| Sign-up, password reset, SSO | Seeded users let reviewers test sharing in seconds; an internal tool would use company SSO, not home-made passwords | SSO via a provider |
+| Comments, version history, export | Each is its own feature. I used my stretch time on viewer/editor roles, enforced on the server and tested. History is next because the `version` column already exists | History ~45 min |
+| Images and video | Needs file storage and upload handling; out of scope for the timebox | Images ~45 min; video embeds by link ~30 min |
+| Import into an existing doc | One clear upload flow ("import as a new doc") is easier to understand and test | ~15 min |
+| Login rate limiting | An in-memory limiter doesn't work on serverless (each instance counts separately), and I'd rather not ship a fake one | Postgres-backed counter, 5 failures / 15 min → 429 |
+| Server-side sessions | Signed cookies keep the server stateless; the cost (no early revoke, 7-day expiry) is documented | Sessions table, ~45 min |
+| Starlette upgrade (audit F3, Low) | Upgrading the framework this close to the deadline risked a working deploy; the two Medium findings (F1, F2) are fixed with tests | ~20 min + regression run |
+| Migrations, pagination, CSP header | Not needed at demo scale; XSS is already handled by server-side sanitizing and no raw HTML rendering | Alembic at the first schema change; CSP tuned for the editor |
 
 **Known tradeoffs:**
 - Two people typing in the same document at once get a conflict, not a merge. The first save wins. The second person's unsaved edit stays on their screen but is not saved: they click **Copy my version**, reload, and paste back what they need. Real merging needs a CRDT (see next steps).
