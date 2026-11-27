@@ -347,4 +347,6 @@ if os.path.isdir(FRONTEND_DIR):
     def spa(path: str):
         if path.startswith("api/"):
             raise HTTPException(status_code=404)
-        return FileResponse(os.path.join(FRONTEND_DIR, "index.html"))
+        # never cache index.html: it names the current JS/CSS files, and a stale copy
+        # points at files from an old deploy that no longer exist (blank page)
+        return FileResponse(os.path.join(FRONTEND_DIR, "index.html"), headers={"Cache-Control": "no-store"})

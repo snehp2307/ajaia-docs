@@ -137,3 +137,13 @@ def test_share_with_invalid_role_rejected(alice):
     doc = new_doc(alice)
     res = alice.post(f"/api/documents/{doc['id']}/shares", json={"email": "bob@ajaia.test", "role": "admin"})
     assert res.status_code == 422
+
+
+def test_index_html_is_never_cached():
+    import os
+    if not os.path.isdir(os.path.join(os.path.dirname(__file__), "..", "..", "frontend", "dist")):
+        return  # frontend not built in this environment
+    with TestClient(app) as client:
+        res = client.get("/doc/anything")
+        assert res.status_code == 200
+        assert res.headers["cache-control"] == "no-store"
