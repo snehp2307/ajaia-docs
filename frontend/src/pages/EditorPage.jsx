@@ -71,6 +71,23 @@ function DocEditor({ doc }) {
     onUpdate: ({ editor }) => queueSave({ content: editor.getHTML() }),
   });
 
+  // After a conflict the user's unsaved text is still in the editor. Copy it with
+  // formatting (falls back to plain text in browsers without rich clipboard support).
+  const [copied, setCopied] = useState(false);
+  async function copyMyVersion() {
+    const html = editor.getHTML();
+    const text = editor.getText();
+    try {
+      await navigator.clipboard.write([new ClipboardItem({
+        "text/html": new Blob([html], { type: "text/html" }),
+        "text/plain": new Blob([text], { type: "text/plain" }),
+      })]);
+    } catch {
+      await navigator.clipboard.writeText(text);
+    }
+    setCopied(true);
+  }
+
   function onTitleChange(e) {
     setTitle(e.target.value);
     queueSave({ title: e.target.value });
@@ -112,8 +129,10 @@ function DocEditor({ doc }) {
       </header>
 
       {status === "conflict" && (
-        <div className="banner">
-          Someone else saved this document while you were editing, so your last changes were not saved.
+        <div className="banner" role="alert">
+          Someone else saved this document while you were editing, so your latest changes were not saved.
+          Copy your version first, then reload and paste back what you need.
+          <button className="btn small" onClick={copyMyVersion}>{copied ? "Copied" : "Copy my version"}</button>
           <button className="btn small" onClick={() => window.location.reload()}>Reload latest version</button>
         </div>
       )}

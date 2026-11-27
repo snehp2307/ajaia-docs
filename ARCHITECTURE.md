@@ -37,7 +37,9 @@ Vercel serves the built React app from its CDN; `/api/*` goes to FastAPI. Tables
 | Images and video in docs | Video needs paid object storage, and reviewers mustn't pay for anything |
 | Migrations, pagination, login rate limiting | Not needed at demo scale; listed below |
 
-**Known tradeoff:** two people typing in the same document at the same moment get a conflict instead of a merge. No data is lost, but it isn't Google-Docs-level collaboration.
+**Known tradeoffs:**
+- Two people typing in the same document at once get a conflict, not a merge. The first save wins. The second person's unsaved edit stays on their screen but is not saved: they click **Copy my version**, reload, and paste back what they need. Real merging needs a CRDT (see next steps).
+- Login is a signed cookie (HttpOnly, Secure, SameSite=Lax, 7-day expiry). There's no server-side session list, so a cookie can't be revoked before it expires. Fine for a demo; production would add server-side sessions or short-lived tokens.
 
 ## Next 2–4 hours
 
