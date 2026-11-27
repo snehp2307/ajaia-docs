@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useOutletContext, useParams } from "react-router-dom";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
@@ -10,12 +10,11 @@ import Toolbar from "../components/Toolbar";
 import ShareDialog from "../components/ShareDialog";
 import Avatar from "../components/Avatar";
 import { MenuButton } from "../components/AppLayout";
+import useAutosave from "../useAutosave";
 
 // By default a list item must start with a normal paragraph, so turning a list
 // line into a heading kicked it out of the list. Allow headings in list items too.
 const ListItemWithHeadings = ListItem.extend({ content: "(paragraph | heading) block*" });
-
-const SAVE_DELAY = 1000; // wait 1s after the last keystroke before saving
 
 // text shown next to the save-status dot ("failed" shows the error message instead)
 const STATUS_TEXT = { saved: "Saved", saving: "Saving…", unsaved: "Unsaved changes", conflict: "Not saved" };
@@ -55,64 +54,10 @@ function DocEditor({ doc }) {
   const canEdit = doc.role !== "viewer";
   const isOwner = doc.role === "owner";
   const [title, setTitle] = useState(doc.title);
-  const [status, setStatus] = useState("saved"); // saved | saving | unsaved | conflict | failed
-  const [saveError, setSaveError] = useState("");
   const [showShare, setShowShare] = useState(false);
   const [shares, setShares] = useState(doc.shares || []);
-
-  // refs hold the latest values without causing re-renders
-  const version = useRef(doc.version);
-  const latestTitle = useRef(doc.title);
-  const latestContent = useRef(doc.content);
-  const timer = useRef(null);
-  const saving = useRef(false);
-  const saveAgain = useRef(false);
-  const stopped = useRef(false); // set after a conflict so we stop overwriting
-  const savedTitle = useRef(doc.title); // so we only refresh the sidebar when the title changed
-
-  async function save() {
-    timer.current = null;
-    if (stopped.current) return;
-    if (saving.current) {
-      saveAgain.current = true; // a save is already running, do another one after it
-      return;
-    }
-    saving.current = true;
-    setStatus("saving");
-    try {
-      const updated = await api.updateDoc(doc.id, {
-        version: version.current,
-        title: latestTitle.current.trim() || "Untitled document",
-        content: latestContent.current,
-      });
-      version.current = updated.version;
-      setStatus("saved");
-      if (updated.title !== savedTitle.current) {
-        savedTitle.current = updated.title;
-        reloadDocs(); // new title should show up in the sidebar
-      }
-    } catch (err) {
-      if (err.status === 409) {
-        stopped.current = true;
-        setStatus("conflict");
-      } else {
-        setSaveError(err.message);
-        setStatus("failed");
-      }
-    } finally {
-      saving.current = false;
-      if (saveAgain.current) {
-        saveAgain.current = false;
-        save();
-      }
-    }
-  }
-
-  function scheduleSave() {
-    setStatus("unsaved");
-    clearTimeout(timer.current);
-    timer.current = setTimeout(save, SAVE_DELAY);
-  }
+  // a renamed doc should show its new title in the sidebar
+  const { status, saveError, queueSave } = useAutosave(doc, reloadDocs);
 
   const editor = useEditor({
     extensions: [
@@ -123,31 +68,12 @@ function DocEditor({ doc }) {
     ],
     content: doc.content,
     editable: canEdit,
-    onUpdate: ({ editor }) => {
-      latestContent.current = editor.getHTML();
-      scheduleSave();
-    },
+    onUpdate: ({ editor }) => queueSave({ content: editor.getHTML() }),
   });
-
-  // if the user leaves with a save still waiting, send it right away
-  useEffect(() => {
-    function warnIfUnsaved(e) {
-      if (timer.current || saving.current) e.preventDefault();
-    }
-    window.addEventListener("beforeunload", warnIfUnsaved);
-    return () => {
-      window.removeEventListener("beforeunload", warnIfUnsaved);
-      if (timer.current) {
-        clearTimeout(timer.current);
-        save();
-      }
-    };
-  }, []);
 
   function onTitleChange(e) {
     setTitle(e.target.value);
-    latestTitle.current = e.target.value;
-    scheduleSave();
+    queueSave({ title: e.target.value });
   }
 
   // everyone who can open this doc, shown as a row of avatars
@@ -165,12 +91,8 @@ function DocEditor({ doc }) {
           className="title-input"
           value={title}
           onChange={onTitleChange}
-          onBlur={() => {
-            if (!title.trim()) {
-              setTitle("Untitled document");
-              latestTitle.current = "Untitled document";
-            }
-          }}
+          // an empty title is saved as "Untitled document", so show that too
+          onBlur={() => { if (!title.trim()) setTitle("Untitled document"); }}
           maxLength={200}
           disabled={!canEdit}
           aria-label="Document title"

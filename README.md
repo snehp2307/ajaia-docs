@@ -98,8 +98,9 @@ backend/
   tests/           pytest API tests
 frontend/src/
   pages/           Login, DocList, EditorPage
-  components/      Toolbar, ShareDialog
+  components/      AppLayout (sidebar), Toolbar, ShareDialog, Avatar
   api.js           fetch wrapper
+  useAutosave.js   autosave + conflict handling for the editor
 ```
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for decisions and tradeoffs and [AI_WORKFLOW.md](AI_WORKFLOW.md) for how AI was used.

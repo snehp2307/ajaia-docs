@@ -37,7 +37,7 @@ The frontend also hides the toolbar and makes the editor read-only for viewers, 
 
 ## Saving and conflicts
 
-Autosave sends the whole document 1 second after the user stops typing. Each document has a `version` number. A save says "I'm editing version 5", and the server runs:
+Autosave lives in one file, `frontend/src/useAutosave.js` (a React hook). It sends the whole document 1 second after the user stops typing, runs only one save at a time, and flushes a pending save if you leave the page. Each document has a `version` number. A save says "I'm editing version 5", and the server runs:
 
 ```sql
 UPDATE documents SET ..., version = 6 WHERE id = ? AND version = 5
