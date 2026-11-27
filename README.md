@@ -90,7 +90,7 @@ Environment variables (set in the Vercel project):
 | Variable        | Purpose                                                        |
 |-----------------|----------------------------------------------------------------|
 | `DATABASE_URL`  | Postgres connection string (added by the Neon integration). If unset, uses local SQLite |
-| `SECRET_KEY`    | Signs the session cookie. Required when using Postgres         |
+| `SECRET_KEY`    | Signs the session cookie. Required when using Postgres. If unset locally/in Docker, a random key is generated on each start (you get logged out on restart) |
 | `COOKIE_SECURE` | Set to `1` on HTTPS so the cookie is only sent over HTTPS      |
 
 ## Project layout

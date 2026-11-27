@@ -1,5 +1,6 @@
 import logging
 import os
+import secrets
 import time
 from contextlib import asynccontextmanager
 from datetime import timezone
@@ -32,7 +33,10 @@ SECRET_KEY = os.getenv("SECRET_KEY")
 if not SECRET_KEY:
     if not DATABASE_URL.startswith("sqlite"):
         raise RuntimeError("SECRET_KEY must be set in production")
-    SECRET_KEY = "dev-secret-only-for-local"
+    # Local/Docker without a key: use a random one per process instead of a fixed string.
+    # A fixed string is public (it's in the repo), so anyone could forge a login cookie.
+    # Downside: logins reset when the server restarts, which is fine locally.
+    SECRET_KEY = secrets.token_urlsafe(32)
 
 
 @asynccontextmanager

@@ -158,3 +158,23 @@ def test_index_html_has_no_etag():
         res = client.get("/", headers={"If-None-Match": '"anything"'})
         assert res.status_code == 200
         assert "etag" not in res.headers
+
+
+def test_docx_zip_bomb_rejected(alice):
+    # small upload that would unpack to 30 MB: must be refused before it's unpacked
+    import io
+    import zipfile
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        z.writestr("word/document.xml", b"A" * (30 * 1024 * 1024))
+    assert len(buf.getvalue()) < 2 * 1024 * 1024
+    res = alice.post("/api/documents/import", files={"file": ("bomb.docx", buf.getvalue(), "application/octet-stream")})
+    assert res.status_code == 400
+    assert "too large" in res.json()["detail"]
+
+
+def test_no_hardcoded_session_secret():
+    # without SECRET_KEY the app must not fall back to a fixed, public string
+    import main
+    assert main.SECRET_KEY != "dev-secret-only-for-local"
+    assert len(main.SECRET_KEY) >= 32
