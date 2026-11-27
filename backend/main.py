@@ -6,7 +6,7 @@ from datetime import timezone
 from typing import Literal
 
 from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from sqlalchemy import func
@@ -341,12 +341,17 @@ def health():
 FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "..", "frontend", "dist")
 
 if os.path.isdir(FRONTEND_DIR):
+    with open(os.path.join(FRONTEND_DIR, "index.html"), encoding="utf-8") as f:
+        INDEX_HTML = f.read()
+
     app.mount("/assets", StaticFiles(directory=os.path.join(FRONTEND_DIR, "assets")), name="assets")
 
     @app.get("/{path:path}")
     def spa(path: str):
         if path.startswith("api/"):
             raise HTTPException(status_code=404)
-        # never cache index.html: it names the current JS/CSS files, and a stale copy
-        # points at files from an old deploy that no longer exist (blank page)
-        return FileResponse(os.path.join(FRONTEND_DIR, "index.html"), headers={"Cache-Control": "no-store"})
+        # Never let browsers cache index.html: it names the current JS/CSS files, and a
+        # stale copy points at files from an old deploy that no longer exist (blank page).
+        # Sent as plain HTML on purpose: FileResponse adds an ETag from file size + date,
+        # which can be identical across deploys, so browsers got "304 not modified".
+        return HTMLResponse(INDEX_HTML, headers={"Cache-Control": "no-store"})

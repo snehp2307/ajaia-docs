@@ -147,3 +147,14 @@ def test_index_html_is_never_cached():
         res = client.get("/doc/anything")
         assert res.status_code == 200
         assert res.headers["cache-control"] == "no-store"
+
+
+def test_index_html_has_no_etag():
+    # an ETag that stays the same across deploys made browsers keep a stale index.html
+    import os
+    if not os.path.isdir(os.path.join(os.path.dirname(__file__), "..", "..", "frontend", "dist")):
+        return
+    with TestClient(app) as client:
+        res = client.get("/", headers={"If-None-Match": '"anything"'})
+        assert res.status_code == 200
+        assert "etag" not in res.headers
