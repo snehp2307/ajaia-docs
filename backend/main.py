@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
+from starlette.middleware.gzip import GZipMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
 from auth import check_password, get_current_user
@@ -44,6 +45,8 @@ async def lifespan(app):
 
 
 app = FastAPI(title="Ajaia Docs", lifespan=lifespan)
+# compress responses (the JS bundle goes from ~500 KB to ~155 KB)
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 app.add_middleware(
     SessionMiddleware,
     secret_key=SECRET_KEY,
@@ -204,7 +207,7 @@ def list_users(user: User = Depends(get_current_user), db: Session = Depends(get
 
 @app.get("/api/documents")
 def list_documents(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    owned = db.query(Document).filter_by(owner_id=user.id).order_by(Document.updated_at.desc()).all()
+    owned_docs = db.query(Document).filter_by(owner_id=user.id).order_by(Document.updated_at.desc()).all()
     # one query: the doc, my role on it, and its owner (avoids a query per row)
     shared_rows = (
         db.query(Document, Share.role, User)
@@ -217,13 +220,14 @@ def list_documents(user: User = Depends(get_current_user), db: Session = Depends
     shared = [{**doc_summary(doc, owner), "role": role} for doc, role, owner in shared_rows]
 
     # how many people each of my documents is shared with (one grouped query)
-    share_counts = dict(
+    count_rows = (
         db.query(Share.document_id, func.count(Share.id))
-        .filter(Share.document_id.in_([d.id for d in owned]))
+        .filter(Share.document_id.in_([d.id for d in owned_docs]))
         .group_by(Share.document_id)
         .all()
     )
-    owned = [{**doc_summary(doc, user), "share_count": share_counts.get(doc.id, 0)} for doc in owned]
+    share_counts = {doc_id: count for doc_id, count in count_rows}
+    owned = [{**doc_summary(doc, user), "share_count": share_counts.get(doc.id, 0)} for doc in owned_docs]
     return {"owned": owned, "shared": shared}
 
 
@@ -239,7 +243,8 @@ def create_document(body: CreateDocBody, user: User = Depends(get_current_user),
 async def import_document(file: UploadFile = File(...), user: User = Depends(get_current_user),
                           db: Session = Depends(get_db)):
     content = await read_upload(file)
-    title = os.path.splitext(file.filename)[0].strip()[:200] or "Imported document"
+    filename = file.filename or ""
+    title = os.path.splitext(filename)[0].strip()[:200] or "Imported document"
     doc = Document(title=title, content=content, owner_id=user.id)
     db.add(doc)
     db.commit()
@@ -257,7 +262,7 @@ def update_document(doc_id: str, body: UpdateDocBody, user: User = Depends(get_c
                     db: Session = Depends(get_db)):
     doc, role = load_doc(db, doc_id, user, need="edit")
 
-    changes = {"version": body.version + 1, "updated_at": now()}
+    changes: dict = {"version": body.version + 1, "updated_at": now()}
     if body.title is not None:
         changes["title"] = check_title(body.title)
     if body.content is not None:
