@@ -20,11 +20,12 @@ Vercel serves the built React app from its CDN; `/api/*` goes to FastAPI. Tables
 
 ## Key decisions
 
-- **One permission check.** Every document route calls `load_doc(..., need="view" | "edit" | "owner")`. No access returns **404**, not 403, so nobody can probe which document IDs exist. The UI hides editing for viewers, but the server is the real check.
-- **No silent overwrites.** Autosave (`frontend/src/useAutosave.js`) sends the document 1 s after typing stops, with the version it last saw. The server saves with `UPDATE … WHERE id = ? AND version = ?`; if someone else saved first, nothing updates and the API returns **409**, and the editor shows a "reload" banner. Doing the check inside the `UPDATE` keeps it correct even when two saves arrive at the same instant.
+- **One permission check.** Every document route calls `load_doc(..., need="view" | "edit" | "owner")`. No access returns **404**, not 403, so nobody can probe which document IDs exist. The UI hides editing for viewers, but the server is the real check. A viewer who tries to save gets **403**: they can see the document exists, but not change it.
+- **No silent overwrites.** Autosave (`frontend/src/useAutosave.js`) sends the document 1 s after typing stops, with the version it last saw. The server saves with `UPDATE … WHERE id = ? AND version = ?`; if someone else saved first, nothing updates, the API returns **409**, autosave pauses, and the editor shows a banner with **Copy my version** and **Reload**. Doing the check inside the `UPDATE` keeps it correct even when two saves arrive at the same instant.
 - **Content is HTML, sanitized on the server.** TipTap reads and writes HTML, so formatting round-trips unchanged. `nh3` strips everything the editor can't produce, so a crafted request can't store a `<script>`.
 - **Import, not attachments.** `.txt`, `.md` and `.docx` (max 2 MB) become a new editable document. Only the converted text is stored, so there's no file storage to run.
 - **Stateless server.** Login is a signed cookie, nothing is kept in memory, and there are no local files. That's what lets it run as serverless functions that scale out without code changes.
+- **Tests.** 13 pytest tests run against the real app and a real database. They cover the access rules (404 for no access, 403 for viewers, owner-only sharing and delete), the 409 conflict, HTML sanitizing, file import, and the upload and input limits. These are the parts where a bug would leak data or lose it.
 - **Serverless details.** Startup may run on several instances at once, so table creation is repeatable and seeding tolerates a duplicate. Neon's connection pooler doesn't support prepared statements, so they're turned off. Secrets live only in Vercel environment variables.
 
 ## What I cut, and why
