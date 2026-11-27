@@ -23,7 +23,9 @@ Quick sharing test: log in as Alice → open a doc → **Share** → add `bob@aj
 - Autosave (1 second after you stop typing) with a "Saving… / Saved" indicator
 - **Import** a `.txt`, `.md` or `.docx` file (max 2 MB) as a new editable document
 - **Sharing** by email with two roles: *Can view* (read-only) and *Can edit*. Owner can change roles or remove access
-- "My documents" and "Shared with me" are listed separately
+- App layout with a sidebar: New / Import, **My documents** and **Shared with me** (with counts), recent documents, and your account. On phones the sidebar becomes a slide-in menu
+- Document list with search by title, owner, "last edited" time, and who it's shared with (or your access level for shared docs)
+- Editor header shows the avatars of everyone with access
 - If two people edit the same doc, the second save is rejected instead of silently overwriting the first person's work, and the user is asked to reload
 
 ## Run locally

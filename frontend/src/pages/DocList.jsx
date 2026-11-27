@@ -1,109 +1,123 @@
-import { useEffect, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useState } from "react";
+import { Link, useOutletContext } from "react-router-dom";
 import { api } from "../api";
+import Avatar from "../components/Avatar";
+import { MenuButton } from "../components/AppLayout";
 
-function formatDate(iso) {
+// "5 min ago", "yesterday", or a date for older things
+export function timeAgo(iso) {
   if (!iso) return "";
-  return new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+  const seconds = (Date.now() - new Date(iso).getTime()) / 1000;
+  if (seconds < 60) return "just now";
+  if (seconds < 3600) return `${Math.floor(seconds / 60)} min ago`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)} h ago`;
+  if (seconds < 172800) return "yesterday";
+  return new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
 }
 
-export default function DocList({ user, onLogout }) {
-  const [docs, setDocs] = useState(null);
+export default function DocList({ view }) {
+  const { user, docs, reloadDocs, createDoc, openImport, openMenu } = useOutletContext();
+  const [search, setSearch] = useState("");
   const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
-  const fileInput = useRef(null);
-  const navigate = useNavigate();
 
-  function loadDocs() {
-    api.listDocs().then(setDocs).catch((err) => setError(err.message));
-  }
-
-  useEffect(loadDocs, []);
-
-  async function createDoc() {
-    setBusy(true);
-    try {
-      const doc = await api.createDoc("Untitled document");
-      navigate(`/doc/${doc.id}`);
-    } catch (err) {
-      setError(err.message);
-      setBusy(false);
-    }
-  }
-
-  async function importFile(e) {
-    const file = e.target.files[0];
-    e.target.value = ""; // so picking the same file again still triggers onChange
-    if (!file) return;
-    setError("");
-    setBusy(true);
-    try {
-      const doc = await api.importDoc(file);
-      navigate(`/doc/${doc.id}`);
-    } catch (err) {
-      setError(err.message);
-      setBusy(false);
-    }
-  }
+  const isShared = view === "shared";
+  const title = isShared ? "Shared with me" : "My documents";
+  const all = docs ? (isShared ? docs.shared : docs.owned) : null;
+  const shown = all ? all.filter((d) => d.title.toLowerCase().includes(search.trim().toLowerCase())) : null;
 
   async function deleteDoc(doc) {
     if (!window.confirm(`Delete "${doc.title}"? This can't be undone.`)) return;
+    setError("");
     try {
       await api.deleteDoc(doc.id);
-      loadDocs();
+      reloadDocs();
     } catch (err) {
       setError(err.message);
     }
   }
 
   return (
-    <div className="page">
+    <>
       <header className="topbar">
-        <span className="logo">Ajaia Docs</span>
+        <MenuButton onClick={openMenu} />
+        <h1 className="page-title">{title}</h1>
         <span className="spacer" />
-        <span className="muted">{user.name}</span>
-        <button className="btn small" onClick={onLogout}>Log out</button>
+        <input
+          type="search"
+          className="search"
+          placeholder="Search by title"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          aria-label="Search documents by title"
+        />
       </header>
 
       <main className="doc-list">
-        <div className="actions">
-          <button className="btn primary" onClick={createDoc} disabled={busy}>+ New document</button>
-          <button className="btn" onClick={() => fileInput.current.click()} disabled={busy}>Import file</button>
-          <input ref={fileInput} type="file" accept=".txt,.md,.docx" hidden onChange={importFile} />
-          <span className="muted small-text">Import supports .txt, .md and .docx (max 2 MB)</span>
-        </div>
+        {error && <p className="error" role="alert">{error}</p>}
+        {!docs && <p className="muted">Loading…</p>}
 
-        {error && <p className="error">{error}</p>}
-        {!docs && !error && <p className="muted">Loading…</p>}
+        {all && all.length === 0 && (
+          <div className="empty-state">
+            {isShared ? (
+              <>
+                <h2>Nothing shared with you yet</h2>
+                <p className="muted">When a teammate shares a document with {user.email}, it shows up here.</p>
+              </>
+            ) : (
+              <>
+                <h2>No documents yet</h2>
+                <p className="muted">Start a blank document or import a .txt, .md or .docx file.</p>
+                <div className="empty-actions">
+                  <button className="btn primary" onClick={createDoc}>+ New document</button>
+                  <button className="btn" onClick={openImport}>Import file</button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
 
-        {docs && (
-          <>
-            <h2>My documents</h2>
-            {docs.owned.length === 0 && <p className="muted">No documents yet. Create one or import a file.</p>}
-            <ul className="doc-rows">
-              {docs.owned.map((doc) => (
-                <li key={doc.id}>
-                  <Link to={`/doc/${doc.id}`} className="doc-title">{doc.title}</Link>
-                  <span className="muted">Edited {formatDate(doc.updated_at)}</span>
-                  <button className="btn small danger" onClick={() => deleteDoc(doc)}>Delete</button>
-                </li>
-              ))}
-            </ul>
+        {all && all.length > 0 && (
+          <div className="doc-table" role="table" aria-label={title}>
+            <div className="doc-row doc-head" role="row">
+              <span role="columnheader">Name</span>
+              <span role="columnheader">{isShared ? "Owner" : "Shared"}</span>
+              <span role="columnheader">Last edited</span>
+              <span role="columnheader" className="cell-end">{isShared ? "Access" : ""}</span>
+            </div>
 
-            <h2>Shared with me</h2>
-            {docs.shared.length === 0 && <p className="muted">Nothing has been shared with you yet.</p>}
-            <ul className="doc-rows">
-              {docs.shared.map((doc) => (
-                <li key={doc.id}>
-                  <Link to={`/doc/${doc.id}`} className="doc-title">{doc.title}</Link>
-                  <span className="muted">from {doc.owner.name}</span>
-                  <span className={`badge ${doc.role}`}>{doc.role === "editor" ? "Can edit" : "View only"}</span>
-                </li>
-              ))}
-            </ul>
-          </>
+            {shown.length === 0 && <p className="muted no-results">No documents match "{search}".</p>}
+
+            {shown.map((doc) => (
+              <div className="doc-row" role="row" key={doc.id}>
+                <Link to={`/doc/${doc.id}`} className="doc-title" role="cell">
+                  <DocIcon /> <span className="truncate">{doc.title}</span>
+                </Link>
+                <span role="cell" className="cell-owner">
+                  {isShared
+                    ? <><Avatar name={doc.owner.name} size={22} /> {doc.owner.name}</>
+                    : <span className="muted">{doc.share_count ? `${doc.share_count} ${doc.share_count === 1 ? "person" : "people"}` : "Only you"}</span>}
+                </span>
+                <span role="cell" className="muted cell-time">{timeAgo(doc.updated_at)}</span>
+                <span role="cell" className="cell-end">
+                  {isShared
+                    ? <span className={`badge ${doc.role}`}>{doc.role === "editor" ? "Can edit" : "View only"}</span>
+                    : <button className="btn small danger" onClick={() => deleteDoc(doc)}>Delete</button>}
+                </span>
+              </div>
+            ))}
+          </div>
         )}
       </main>
-    </div>
+    </>
+  );
+}
+
+function DocIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+      strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="doc-icon">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" />
+    </svg>
   );
 }

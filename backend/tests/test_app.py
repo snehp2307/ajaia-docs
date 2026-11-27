@@ -58,6 +58,10 @@ def test_sharing_flow(alice, bob, carol):
     alice.post(url + "/shares", json={"email": "bob@ajaia.test", "role": "editor"})
     alice.post(url + "/shares", json={"email": "carol@ajaia.test", "role": "viewer"})
 
+    # the owner's list shows how many people have access
+    owned = {d["id"]: d for d in alice.get("/api/documents").json()["owned"]}
+    assert owned[doc["id"]]["share_count"] == 2
+
     # it shows up under "shared with me", not "my documents"
     bob_list = bob.get("/api/documents").json()
     assert doc["id"] in [d["id"] for d in bob_list["shared"]]

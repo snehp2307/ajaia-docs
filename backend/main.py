@@ -8,6 +8,7 @@ from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
+from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
@@ -221,7 +222,19 @@ def list_documents(user: User = Depends(get_current_user), db: Session = Depends
         item = doc_summary(doc, owner)
         item["role"] = role
         shared.append(item)
-    return {"owned": [doc_summary(d, user) for d in owned], "shared": shared}
+    # how many people each of my documents is shared with (one grouped query)
+    share_counts = dict(
+        db.query(Share.document_id, func.count(Share.id))
+        .filter(Share.document_id.in_([d.id for d in owned]))
+        .group_by(Share.document_id)
+        .all()
+    )
+    owned_list = []
+    for doc in owned:
+        item = doc_summary(doc, user)
+        item["share_count"] = share_counts.get(doc.id, 0)
+        owned_list.append(item)
+    return {"owned": owned_list, "shared": shared}
 
 
 @app.post("/api/documents", status_code=201)
