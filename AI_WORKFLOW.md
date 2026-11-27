@@ -45,6 +45,11 @@
   - **Deploys:** `index.html` is never cached and has no ETag, so reviewers always get the latest build.
 - **Conflict path:** I opened the same document in two tabs, saved in both, and confirmed the 409 banner and that **Copy my version** keeps my text.
 - **Formatting round-trip:** I applied bold, italic, underline, headings and lists, waited for autosave, hard-refreshed and confirmed nothing was lost.
+- **Two broken deploys, caught and rolled back.** After every deploy I checked the live URL, and twice that caught a bad change before anyone else saw it:
+  1. An attempt to serve the frontend from Vercel's CDN made every page return **404**.
+  2. Adding a `pyproject.toml` (for Mypy settings) made Vercel install dependencies from it instead of `requirements.txt`, so every request returned **500**.
+
+  Both were reverted within about two minutes with `git revert`, not a force-push. The second fix kept the Mypy settings by moving them to `mypy.ini`. After that, risky deploy changes went to a **preview deployment** first. That caught a third approach (Vercel's CDN promotion for FastAPI static files) that would not have worked, before it reached production.
 - **Bad input:** unsupported file types, files over 2 MB, sharing with an unknown email, and both security fixes covered by regression tests (`test_docx_zip_bomb_rejected`, `test_no_hardcoded_session_secret`).
 
 **The split I kept:** AI did the research, the drafting and the reviewing. The requirements, the scope cuts and the final call on every design decision were mine.
