@@ -4,6 +4,14 @@ A small collaborative document editor: create and format documents, import files
 
 **Live demo:** https://ajaia-docs-ten-chi.vercel.app
 
+## Stack
+
+- **Frontend:** React 18, Vite, TipTap (rich-text editor), React Router
+- **Backend:** Python 3.12, FastAPI, SQLAlchemy
+- **Database:** Postgres (Neon) in production, SQLite locally
+- **Hosting:** Vercel (frontend on the CDN, API as a serverless function)
+- **Tests:** pytest API tests (in `backend/tests`); the user flows were also checked in a real browser with Playwright
+
 ## Demo accounts
 
 All passwords are `demo1234`. The login page has buttons that fill these in.
