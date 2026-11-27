@@ -1,3 +1,5 @@
+from sqlalchemy.exc import IntegrityError
+
 from auth import hash_password
 from models import Document, Share, User
 
@@ -14,7 +16,16 @@ def seed(db):
     # only seed an empty database
     if db.query(User).count() > 0:
         return
+    try:
+        add_demo_data(db)
+        db.commit()
+    except IntegrityError:
+        # On serverless hosting two instances can start at the same time and both
+        # try to seed. The unique email column stops the second one, which is fine.
+        db.rollback()
 
+
+def add_demo_data(db):
     users = {}
     for email, name in DEMO_USERS:
         user = User(email=email, name=name, password_hash=hash_password(DEMO_PASSWORD))
@@ -36,4 +47,3 @@ def seed(db):
     db.flush()
     db.add(Share(document_id=welcome.id, user_id=users["bob@ajaia.test"].id, role="editor"))
     db.add(Share(document_id=welcome.id, user_id=users["carol@ajaia.test"].id, role="viewer"))
-    db.commit()
