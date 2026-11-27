@@ -18,7 +18,7 @@ Quick sharing test: log in as Alice → open a doc → **Share** → add `bob@aj
 
 ## Features
 
-- Create, rename, edit and delete documents
+- Create, rename, edit and delete documents (delete from the list or from inside the editor; owner only)
 - Rich text: bold, italic, underline, headings (H1–H3), bulleted and numbered lists, quotes, undo/redo
 - Autosave (1 second after you stop typing) with a "Saving… / Saved" indicator
 - **Import** a `.txt`, `.md` or `.docx` file (max 2 MB) as a new editable document
