@@ -11,7 +11,7 @@ The brief asks for depth over breadth, so I focused on making the core loop soli
 | Frontend  | React + Vite + TipTap          | TipTap gives a solid rich-text editor (built on ProseMirror) without writing editing logic myself |
 | Backend   | Python, FastAPI                | Simple, request validation with Pydantic built in, easy to test |
 | Database  | SQLAlchemy → SQLite locally, Postgres in production | Zero setup locally; a real database in production. Same code for both |
-| Hosting   | One Docker container on Render + Render Postgres | FastAPI serves the built React app, so there is one URL and no CORS setup |
+| Hosting   | Vercel (FastAPI as a serverless function, React from the CDN) + Neon Postgres (free) | Free for reviewers, deploys on every push to `main`, and frontend + API share one domain so there is no CORS setup |
 
 ## Data model
 
@@ -55,11 +55,22 @@ Seeded demo accounts with a lightweight login (the brief allowed this). Password
 
 Import `.txt`, `.md` or `.docx` (max 2 MB) as a new document. `.docx` is converted with `mammoth`, `.md` with `markdown`, and plain text is escaped and split into paragraphs. The result goes through the same sanitizer as editor content. Other file types get a clear error. The file itself isn't stored, only the converted content, so there's no file storage to manage.
 
+## Deployment (Vercel + Neon)
+
+- The root `app.py` re-exports the FastAPI app so Vercel can find it. The build step compiles the React app into `public/`, which Vercel serves from its CDN.
+- Serverless functions have no disk, so all data lives in Neon Postgres. Locally the same code uses a SQLite file.
+- Things I had to handle because it's serverless:
+  - **Startup can run on several instances at once.** Tables are created with `create_all` (safe to repeat) and seeding catches the duplicate-email error if two instances seed at the same moment.
+  - **Connections go through Neon's pooler (PgBouncer).** I turned off psycopg's automatic prepared statements, which can misbehave behind a pooler, and use `pool_pre_ping` so a stale connection from an idle instance gets replaced instead of failing a request.
+  - **No secrets in code.** `SECRET_KEY` and `DATABASE_URL` are Vercel environment variables. The app refuses to start on Postgres without a real `SECRET_KEY`.
+- I verified the deployed site with the same browser script I used locally (all flows passed on Postgres), then deleted the test documents it created.
+- I first set it up for Render (Docker + Render Postgres) and switched to Vercel: no cold start of ~1 minute after idling, and automatic deploys from GitHub. The `Dockerfile` is still there for running locally in one command.
+
 ## How it would scale
 
 For an internal tool (hundreds of users) one small instance + Postgres is plenty. If it grew:
 
-- **App servers** are stateless (cookie sessions, no local files), so you can add instances behind a load balancer.
+- **App servers** are stateless (cookie sessions, no local files), which is why it runs on serverless at all: Vercel starts more instances under load without any change to the code.
 - **Reads** of the doc lists are indexed joins, one query each (no per-row queries).
 - **Writes**: every autosave rewrites the full document. Fine at this size; for large docs or many editors I'd switch to sending changes (CRDT updates) instead of the whole document.
 - **Database**: one Postgres is the single source of truth. Next steps would be read replicas, then partitioning by document id if ever needed.

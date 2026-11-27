@@ -2,7 +2,7 @@
 
 A small collaborative document editor: create and format documents, import files, and share them with teammates as viewers or editors.
 
-**Live demo:** _LIVE_URL_ (free hosting — the first load after it has been idle can take ~1 minute to wake up)
+**Live demo:** https://ajaia-docs-ten-chi.vercel.app
 
 ## Demo accounts
 
@@ -35,7 +35,7 @@ Needs Python 3.11+ and Node 18+.
 cd backend
 python -m venv .venv
 .venv\Scripts\activate          # Windows  (macOS/Linux: source .venv/bin/activate)
-pip install -r requirements-dev.txt
+pip install -r requirements-dev.txt   # includes ../requirements.txt
 
 # 2. frontend (in another terminal)
 cd frontend
@@ -69,11 +69,17 @@ pytest
 
 ## Deployment
 
-Deployed on Render using `render.yaml` (one Docker web service + one free Postgres database). Environment variables:
+Deployed on **Vercel** with a free **Neon Postgres** database. Every push to `main` deploys automatically.
+
+- `app.py` (repo root) is the entrypoint Vercel looks for; it loads `backend/main.py`
+- `vercel.json` builds the React app into `public/`, which Vercel serves from its CDN
+- Python dependencies are in the root `requirements.txt`
+
+Environment variables (set in the Vercel project):
 
 | Variable        | Purpose                                                        |
 |-----------------|----------------------------------------------------------------|
-| `DATABASE_URL`  | Postgres connection string. If unset, uses local SQLite        |
+| `DATABASE_URL`  | Postgres connection string (added by the Neon integration). If unset, uses local SQLite |
 | `SECRET_KEY`    | Signs the session cookie. Required when using Postgres         |
 | `COOKIE_SECURE` | Set to `1` on HTTPS so the cookie is only sent over HTTPS      |
 

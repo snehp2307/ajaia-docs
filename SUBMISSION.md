@@ -1,7 +1,7 @@
 # Submission: Ajaia Docs
 
 **Candidate:** Sneh Patel
-**Live URL:** _LIVE_URL_
+**Live URL:** https://ajaia-docs-ten-chi.vercel.app
 **Walkthrough video:** see `VIDEO_URL.txt`
 
 ## Test accounts
@@ -21,7 +21,7 @@ Password for all: `demo1234`
 | Architecture note | `ARCHITECTURE.md` |
 | AI workflow note | `AI_WORKFLOW.md` |
 | Automated tests | `backend/tests/` (run `pytest` in `backend/`) |
-| Deployment config | `Dockerfile`, `render.yaml` |
+| Deployment config | `vercel.json`, `app.py` (Vercel entrypoint), `Dockerfile` (local) |
 | Walkthrough video link | `VIDEO_URL.txt` |
 | Screenshots | `screenshots/` |
 
@@ -33,7 +33,7 @@ Password for all: `demo1234`
 - Import .txt, .md, .docx as a new document (other types rejected with a message)
 - Sharing by email with viewer/editor roles; separate "My documents" and "Shared with me" lists; owner can change or remove access
 - Conflict detection when two people save the same document
-- Deployed with Postgres
+- Deployed on Vercel with Neon Postgres
 
 **Not included (deliberate)**
 - Real-time co-editing and presence
