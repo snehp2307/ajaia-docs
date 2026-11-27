@@ -125,3 +125,15 @@ def test_import_txt_escapes_html(alice):
 def test_import_rejects_other_file_types(alice):
     res = alice.post("/api/documents/import", files={"file": ("x.pdf", b"%PDF", "application/pdf")})
     assert res.status_code == 400
+
+
+def test_upload_over_2mb_rejected(alice):
+    big = b"a" * (2 * 1024 * 1024 + 1)
+    res = alice.post("/api/documents/import", files={"file": ("big.txt", big, "text/plain")})
+    assert res.status_code == 413
+
+
+def test_share_with_invalid_role_rejected(alice):
+    doc = new_doc(alice)
+    res = alice.post(f"/api/documents/{doc['id']}/shares", json={"email": "bob@ajaia.test", "role": "admin"})
+    assert res.status_code == 422

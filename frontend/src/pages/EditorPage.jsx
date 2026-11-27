@@ -17,13 +17,8 @@ const ListItemWithHeadings = ListItem.extend({ content: "(paragraph | heading) b
 
 const SAVE_DELAY = 1000; // wait 1s after the last keystroke before saving
 
-// picks the colour of the little dot next to the save status
-function statusClass(status) {
-  if (status === "Saved") return "saved";
-  if (status === "Saving…") return "saving";
-  if (status === "Unsaved changes") return "unsaved";
-  return "failed";
-}
+// text shown next to the save-status dot ("failed" shows the error message instead)
+const STATUS_TEXT = { saved: "Saved", saving: "Saving…", unsaved: "Unsaved changes", conflict: "Not saved" };
 
 export default function EditorPage() {
   const { id } = useParams();
@@ -60,8 +55,8 @@ function DocEditor({ doc }) {
   const canEdit = doc.role !== "viewer";
   const isOwner = doc.role === "owner";
   const [title, setTitle] = useState(doc.title);
-  const [status, setStatus] = useState("Saved");
-  const [conflict, setConflict] = useState(false);
+  const [status, setStatus] = useState("saved"); // saved | saving | unsaved | conflict | failed
+  const [saveError, setSaveError] = useState("");
   const [showShare, setShowShare] = useState(false);
   const [shares, setShares] = useState(doc.shares || []);
 
@@ -83,7 +78,7 @@ function DocEditor({ doc }) {
       return;
     }
     saving.current = true;
-    setStatus("Saving…");
+    setStatus("saving");
     try {
       const updated = await api.updateDoc(doc.id, {
         version: version.current,
@@ -91,7 +86,7 @@ function DocEditor({ doc }) {
         content: latestContent.current,
       });
       version.current = updated.version;
-      setStatus("Saved");
+      setStatus("saved");
       if (updated.title !== savedTitle.current) {
         savedTitle.current = updated.title;
         reloadDocs(); // new title should show up in the sidebar
@@ -99,10 +94,10 @@ function DocEditor({ doc }) {
     } catch (err) {
       if (err.status === 409) {
         stopped.current = true;
-        setConflict(true);
-        setStatus("Not saved");
+        setStatus("conflict");
       } else {
-        setStatus("Couldn't save: " + err.message);
+        setSaveError(err.message);
+        setStatus("failed");
       }
     } finally {
       saving.current = false;
@@ -114,7 +109,7 @@ function DocEditor({ doc }) {
   }
 
   function scheduleSave() {
-    setStatus("Unsaved changes");
+    setStatus("unsaved");
     clearTimeout(timer.current);
     timer.current = setTimeout(save, SAVE_DELAY);
   }
@@ -182,7 +177,9 @@ function DocEditor({ doc }) {
         />
         <span className="spacer" />
         {canEdit
-          ? <span className={`save-status ${statusClass(status)}`} role="status">{status}</span>
+          ? <span className={`save-status ${status}`} role="status">
+              {status === "failed" ? `Couldn't save: ${saveError}` : STATUS_TEXT[status]}
+            </span>
           : <span className="badge viewer">View only</span>}
         <div className="avatar-stack" aria-label={`People with access: ${people.map((p) => p.name).join(", ")}`}>
           {people.map((p) => <Avatar key={p.id} name={p.name} size={28} />)}
@@ -192,7 +189,7 @@ function DocEditor({ doc }) {
           : <span className="muted small-text owner-label">Owned by {doc.owner.name}</span>}
       </header>
 
-      {conflict && (
+      {status === "conflict" && (
         <div className="banner">
           Someone else saved this document while you were editing, so your last changes were not saved.
           <button className="btn small" onClick={() => window.location.reload()}>Reload latest version</button>

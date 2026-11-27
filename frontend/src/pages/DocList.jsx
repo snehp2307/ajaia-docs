@@ -5,7 +5,7 @@ import Avatar from "../components/Avatar";
 import { MenuButton } from "../components/AppLayout";
 
 // "5 min ago", "yesterday", or a date for older things
-export function timeAgo(iso) {
+function timeAgo(iso) {
   if (!iso) return "";
   const seconds = (Date.now() - new Date(iso).getTime()) / 1000;
   if (seconds < 60) return "just now";

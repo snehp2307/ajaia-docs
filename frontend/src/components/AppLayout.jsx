@@ -23,11 +23,12 @@ export default function AppLayout({ user, onLogout }) {
   // close the phone drawer whenever we go to another page
   useEffect(() => { setMenuOpen(false); }, [location.pathname]);
 
-  async function createDoc() {
+  // used by both "New document" and "Import file": make the doc, then open it
+  async function createAndOpen(request) {
     setBusy(true);
     setError("");
     try {
-      const doc = await api.createDoc("Untitled document");
+      const doc = await request();
       await reloadDocs();
       navigate(`/doc/${doc.id}`);
     } catch (err) {
@@ -37,21 +38,12 @@ export default function AppLayout({ user, onLogout }) {
     }
   }
 
-  async function importFile(e) {
+  const createDoc = () => createAndOpen(() => api.createDoc("Untitled document"));
+
+  function importFile(e) {
     const file = e.target.files[0];
     e.target.value = ""; // so picking the same file again still triggers onChange
-    if (!file) return;
-    setBusy(true);
-    setError("");
-    try {
-      const doc = await api.importDoc(file);
-      await reloadDocs();
-      navigate(`/doc/${doc.id}`);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setBusy(false);
-    }
+    if (file) createAndOpen(() => api.importDoc(file));
   }
 
   // most recently edited documents, mine and shared, for quick switching

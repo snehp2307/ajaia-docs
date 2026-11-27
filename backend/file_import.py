@@ -1,11 +1,11 @@
 import html
 import io
+import os
 
 import mammoth
 import markdown
 import nh3
 
-ALLOWED_EXTENSIONS = [".txt", ".md", ".docx"]
 MAX_FILE_SIZE = 2 * 1024 * 1024  # 2 MB
 
 # only the tags our editor actually supports, everything else gets removed
@@ -17,14 +17,9 @@ def clean_html(raw_html):
     return nh3.clean(raw_html, tags=ALLOWED_TAGS, attributes={"a": {"href"}})
 
 
-def get_extension(filename):
-    if "." not in filename:
-        return ""
-    return "." + filename.rsplit(".", 1)[1].lower()
-
-
 def file_to_html(filename, data):
-    ext = get_extension(filename)
+    """Converts an uploaded .txt, .md or .docx file to safe HTML. Raises ValueError for anything else."""
+    ext = os.path.splitext(filename or "")[1].lower()
 
     if ext == ".docx":
         try:
@@ -32,6 +27,9 @@ def file_to_html(filename, data):
         except Exception:
             raise ValueError("Could not read this .docx file. Is it a valid Word document?")
         return clean_html(result.value)
+
+    if ext not in (".txt", ".md"):
+        raise ValueError("Unsupported file type. Allowed: .txt, .md, .docx")
 
     try:
         text = data.decode("utf-8")
@@ -41,17 +39,6 @@ def file_to_html(filename, data):
     if ext == ".md":
         return clean_html(markdown.markdown(text))
 
-    if ext == ".txt":
-        # each blank-line separated block becomes a paragraph
-        paragraphs = [p.strip() for p in text.replace("\r\n", "\n").split("\n\n") if p.strip()]
-        parts = []
-        for p in paragraphs:
-            parts.append("<p>" + html.escape(p).replace("\n", "<br>") + "</p>")
-        return "".join(parts)
-
-    raise ValueError("Unsupported file type. Allowed: .txt, .md, .docx")
-
-
-def title_from_filename(filename):
-    name = filename.rsplit(".", 1)[0].strip()
-    return name[:200] or "Imported document"
+    # .txt: each blank-line separated block becomes a paragraph
+    paragraphs = [p.strip() for p in text.replace("\r\n", "\n").split("\n\n") if p.strip()]
+    return "".join("<p>" + html.escape(p).replace("\n", "<br>") + "</p>" for p in paragraphs)

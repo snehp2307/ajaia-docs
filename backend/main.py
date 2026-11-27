@@ -3,6 +3,7 @@ import os
 import time
 from contextlib import asynccontextmanager
 from datetime import timezone
+from typing import Literal
 
 from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
@@ -13,11 +14,10 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
 
-import models
 from auth import check_password, get_current_user
 from database import DATABASE_URL, Base, SessionLocal, engine, get_db
-from file_import import ALLOWED_EXTENSIONS, MAX_FILE_SIZE, clean_html, file_to_html, get_extension, title_from_filename
-from models import Document, Share, User
+from file_import import MAX_FILE_SIZE, clean_html, file_to_html
+from models import Document, Share, User, now
 from seed import seed
 
 MAX_CONTENT_LENGTH = 500_000  # characters of HTML per document
@@ -67,8 +67,8 @@ async def log_requests(request: Request, call_next):
 # ---------- request bodies ----------
 
 class LoginBody(BaseModel):
-    email: str
-    password: str
+    email: str = Field(max_length=254)
+    password: str = Field(max_length=200)
 
 
 class CreateDocBody(BaseModel):
@@ -83,8 +83,8 @@ class UpdateDocBody(BaseModel):
 
 
 class ShareBody(BaseModel):
-    email: str
-    role: str = "viewer"
+    email: str = Field(max_length=254)
+    role: Literal["viewer", "editor"] = "viewer"
 
 
 # ---------- helpers ----------
@@ -93,24 +93,24 @@ def user_json(user):
     return {"id": user.id, "email": user.email, "name": user.name}
 
 
-def get_role(db, doc, user):
-    """Returns 'owner', 'editor', 'viewer' or None if the user has no access."""
-    if doc.owner_id == user.id:
-        return "owner"
-    share = db.query(Share).filter_by(document_id=doc.id, user_id=user.id).first()
-    if share:
-        return share.role
-    return None
-
-
-def load_doc(db, doc_id, user, need_edit=False):
+def load_doc(db, doc_id, user, need="view"):
+    """Loads a document and the user's role on it ('owner', 'editor' or 'viewer').
+    `need` is the access the caller requires: 'view', 'edit' or 'owner'."""
     doc = db.get(Document, doc_id)
-    role = get_role(db, doc, user) if doc else None
+    role = None
+    if doc and doc.owner_id == user.id:
+        role = "owner"
+    elif doc:
+        share = db.query(Share).filter_by(document_id=doc.id, user_id=user.id).first()
+        role = share.role if share else None
+
     # 404 instead of 403 so we don't reveal that the document exists
     if role is None:
         raise HTTPException(status_code=404, detail="Document not found")
-    if need_edit and role == "viewer":
+    if need == "edit" and role == "viewer":
         raise HTTPException(status_code=403, detail="You only have view access to this document")
+    if need == "owner" and role != "owner":
+        raise HTTPException(status_code=403, detail="Only the owner can do this")
     return doc, role
 
 
@@ -160,10 +160,7 @@ def check_content(content):
 
 
 async def read_upload(file):
-    ext = get_extension(file.filename or "")
-    if ext not in ALLOWED_EXTENSIONS:
-        raise HTTPException(status_code=400, detail="Unsupported file type. Allowed: .txt, .md, .docx")
-    data = await file.read()
+    data = await file.read(MAX_FILE_SIZE + 1)  # never hold more than the limit in memory
     if len(data) > MAX_FILE_SIZE:
         raise HTTPException(status_code=413, detail="File is too big (max 2 MB)")
     if len(data) == 0:
@@ -217,11 +214,8 @@ def list_documents(user: User = Depends(get_current_user), db: Session = Depends
         .order_by(Document.updated_at.desc())
         .all()
     )
-    shared = []
-    for doc, role, owner in shared_rows:
-        item = doc_summary(doc, owner)
-        item["role"] = role
-        shared.append(item)
+    shared = [{**doc_summary(doc, owner), "role": role} for doc, role, owner in shared_rows]
+
     # how many people each of my documents is shared with (one grouped query)
     share_counts = dict(
         db.query(Share.document_id, func.count(Share.id))
@@ -229,12 +223,8 @@ def list_documents(user: User = Depends(get_current_user), db: Session = Depends
         .group_by(Share.document_id)
         .all()
     )
-    owned_list = []
-    for doc in owned:
-        item = doc_summary(doc, user)
-        item["share_count"] = share_counts.get(doc.id, 0)
-        owned_list.append(item)
-    return {"owned": owned_list, "shared": shared}
+    owned = [{**doc_summary(doc, user), "share_count": share_counts.get(doc.id, 0)} for doc in owned]
+    return {"owned": owned, "shared": shared}
 
 
 @app.post("/api/documents", status_code=201)
@@ -249,7 +239,8 @@ def create_document(body: CreateDocBody, user: User = Depends(get_current_user),
 async def import_document(file: UploadFile = File(...), user: User = Depends(get_current_user),
                           db: Session = Depends(get_db)):
     content = await read_upload(file)
-    doc = Document(title=title_from_filename(file.filename), content=content, owner_id=user.id)
+    title = os.path.splitext(file.filename)[0].strip()[:200] or "Imported document"
+    doc = Document(title=title, content=content, owner_id=user.id)
     db.add(doc)
     db.commit()
     return doc_detail(db, doc, "owner")
@@ -264,9 +255,9 @@ def get_document(doc_id: str, user: User = Depends(get_current_user), db: Sessio
 @app.patch("/api/documents/{doc_id}")
 def update_document(doc_id: str, body: UpdateDocBody, user: User = Depends(get_current_user),
                     db: Session = Depends(get_db)):
-    doc, role = load_doc(db, doc_id, user, need_edit=True)
+    doc, role = load_doc(db, doc_id, user, need="edit")
 
-    changes = {"version": body.version + 1, "updated_at": models.now()}
+    changes = {"version": body.version + 1, "updated_at": now()}
     if body.title is not None:
         changes["title"] = check_title(body.title)
     if body.content is not None:
@@ -280,22 +271,20 @@ def update_document(doc_id: str, body: UpdateDocBody, user: User = Depends(get_c
         .update(changes, synchronize_session=False)
     )
     db.commit()
+    db.refresh(doc)
     if updated == 0:
-        db.refresh(doc)
         raise HTTPException(
             status_code=409,
             detail={"message": "Someone else changed this document. Reload to see their changes.",
                     "current_version": doc.version},
         )
-    db.refresh(doc)
     return doc_detail(db, doc, role)
 
 
 @app.delete("/api/documents/{doc_id}")
 def delete_document(doc_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    doc, role = load_doc(db, doc_id, user)
-    if role != "owner":
-        raise HTTPException(status_code=403, detail="Only the owner can delete a document")
+    doc, role = load_doc(db, doc_id, user, need="owner")
+    # delete shares explicitly: SQLite doesn't enforce ON DELETE CASCADE by default
     db.query(Share).filter_by(document_id=doc.id).delete()
     db.delete(doc)
     db.commit()
@@ -307,12 +296,7 @@ def delete_document(doc_id: str, user: User = Depends(get_current_user), db: Ses
 @app.post("/api/documents/{doc_id}/shares")
 def share_document(doc_id: str, body: ShareBody, user: User = Depends(get_current_user),
                    db: Session = Depends(get_db)):
-    doc, role = load_doc(db, doc_id, user)
-    if role != "owner":
-        raise HTTPException(status_code=403, detail="Only the owner can share this document")
-    if body.role not in ("viewer", "editor"):
-        raise HTTPException(status_code=400, detail="Role must be viewer or editor")
-
+    doc, role = load_doc(db, doc_id, user, need="owner")
     target = db.query(User).filter_by(email=body.email.strip().lower()).first()
     if not target:
         raise HTTPException(status_code=404, detail="No user with that email")
@@ -336,9 +320,7 @@ def share_document(doc_id: str, body: ShareBody, user: User = Depends(get_curren
 
 @app.delete("/api/documents/{doc_id}/shares/{user_id}")
 def remove_share(doc_id: str, user_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    doc, role = load_doc(db, doc_id, user)
-    if role != "owner":
-        raise HTTPException(status_code=403, detail="Only the owner can change sharing")
+    doc, role = load_doc(db, doc_id, user, need="owner")
     db.query(Share).filter_by(document_id=doc.id, user_id=user_id).delete()
     db.commit()
     return doc_detail(db, doc, role)
