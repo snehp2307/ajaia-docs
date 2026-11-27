@@ -1,9 +1,0 @@
-[tool.mypy]
-# backend/ files import each other by short names (from database import ...),
-# so tell mypy to look there too, the same way app.py does at runtime
-mypy_path = "backend"
-
-# mammoth ships no type hints
-[[tool.mypy.overrides]]
-module = "mammoth"
-ignore_missing_imports = true

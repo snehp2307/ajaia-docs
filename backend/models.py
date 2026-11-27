@@ -1,8 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, ForeignKey, String, Text, UniqueConstraint
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 
 from database import Base
 
@@ -18,30 +17,30 @@ def now():
 class User(Base):
     __tablename__ = "users"
 
-    id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
-    email: Mapped[str] = mapped_column(String, unique=True)
-    name: Mapped[str] = mapped_column(String)
-    password_hash: Mapped[str] = mapped_column(String)
+    id = Column(String, primary_key=True, default=new_id)
+    email = Column(String, unique=True, nullable=False)
+    name = Column(String, nullable=False)
+    password_hash = Column(String, nullable=False)
 
 
 class Document(Base):
     __tablename__ = "documents"
 
-    id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
-    title: Mapped[str] = mapped_column(String(200))
-    content: Mapped[str] = mapped_column(Text, default="")  # stored as sanitized HTML
-    owner_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    id = Column(String, primary_key=True, default=new_id)
+    title = Column(String(200), nullable=False)
+    content = Column(Text, nullable=False, default="")  # stored as sanitized HTML
+    owner_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
     # goes up by 1 on every save, so we can catch two people overwriting each other
-    version: Mapped[int] = mapped_column(default=1)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    version = Column(Integer, nullable=False, default=1)
+    created_at = Column(DateTime(timezone=True), default=now)
+    updated_at = Column(DateTime(timezone=True), default=now)
 
 
 class Share(Base):
     __tablename__ = "shares"
     __table_args__ = (UniqueConstraint("document_id", "user_id"),)
 
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    document_id: Mapped[str] = mapped_column(ForeignKey("documents.id", ondelete="CASCADE"))
-    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
-    role: Mapped[str] = mapped_column(String)  # "viewer" or "editor"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    document_id = Column(String, ForeignKey("documents.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
+    role = Column(String, nullable=False)  # "viewer" or "editor"
